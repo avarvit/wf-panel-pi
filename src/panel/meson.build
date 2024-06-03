@@ -82,9 +82,22 @@ util_sources = files(
   'notification.c'
 )
 
-deps = [gtkmm, wayland_client, wf_protos, wfconfig, gtklayershell, menu_cache, libfm, netman, nma, secret, notify, packagekit, libpulse, udev, dbusmenu_gtk, input, xkbcommon]
+config_sources = files(
+   'config/types.cpp',
+   'config/option.cpp',
+   'config/section.cpp',
+   'config/log.cpp',
+   'config/xml.cpp',
+   'config/config-manager.cpp',
+   'config/file.cpp',
+   'config/duration.cpp',
+   'config/compound-option.cpp',
+)
 
-executable('wf-panel-pi', ['panel.cpp', 'lxutils.c'] + widget_sources + util_sources,
+#deps = [gtkmm, wayland_client, wf_protos, wfconfig, gtklayershell, menu_cache, libfm, netman, nma, secret, notify, packagekit, libpulse, udev, dbusmenu_gtk, input, glm, evdev, libxml2, xkbcommon]
+deps = [gtkmm, wayland_client, wf_protos, gtklayershell, menu_cache, libfm, netman, nma, secret, notify, packagekit, libpulse, udev, dbusmenu_gtk, input, glm, evdev, libxml2, xkbcommon]
+
+executable('wf-panel-pi', ['panel.cpp', 'lxutils.c'] + widget_sources + util_sources + config_sources,
         dependencies: deps,
         install: true
 )

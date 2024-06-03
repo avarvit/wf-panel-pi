@@ -55,7 +55,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 /*----------------------------------------------------------------------------*/
 
 static gboolean net_available (void);
-static gboolean clock_synced (void);
 static void check_for_updates (gpointer user_data);
 static gpointer refresh_update_cache (gpointer data);
 static void refresh_cache_done (PkTask *task, GAsyncResult *res, gpointer data);
@@ -69,8 +68,6 @@ static void handle_close_and_install (GtkButton *button, gpointer user_data);
 static gint delete_update_dialog (GtkWidget *widget, GdkEvent *event, gpointer user_data);
 static void show_menu (UpdaterPlugin *up);
 static void hide_menu (UpdaterPlugin *up);
-static void message (char *msg, int prog);
-static gboolean close_msg (GtkButton *button, gpointer data);
 static void update_icon (UpdaterPlugin *up, gboolean hide);
 static gboolean init_check (gpointer data);
 static gboolean net_check (gpointer data);
@@ -92,19 +89,6 @@ static gboolean net_available (void)
 {
     if (system ("hostname -I | grep -q \\\\.") == 0) return TRUE;
     else return FALSE;
-}
-
-static gboolean clock_synced (void)
-{
-    if (system ("test -e /usr/sbin/ntpd") == 0)
-    {
-        if (system ("ntpq -p | grep -q ^\\*") == 0) return TRUE;
-    }
-    else
-    {
-        if (system ("timedatectl status | grep -q \"synchronized: yes\"") == 0) return TRUE;
-    }
-    return FALSE;
 }
 
 
@@ -223,18 +207,6 @@ static void check_updates_done (PkTask *task, GAsyncResult *res, gpointer data)
 
 static void install_updates (GtkWidget *widget, gpointer user_data)
 {
-    if (!net_available ())
-    {
-        message (_("No network connection - cannot install updates."), -3);
-        return;
-    }
-
-    if (!clock_synced ())
-    {
-        message (_("Clock not synchronised - cannot install updates. Try again in a few minutes."), -3);
-        return;
-    }
-
     launch_installer ();
 }
 
@@ -309,7 +281,7 @@ static void handle_close_and_install (GtkButton *button, gpointer user_data)
         gtk_widget_destroy (up->update_dlg);
         up->update_dlg = NULL;
     }
-    if (net_available () && clock_synced ()) launch_installer ();
+    launch_installer ();
 }
 
 static gint delete_update_dialog (GtkWidget *widget, GdkEvent *event, gpointer user_data)
@@ -354,46 +326,6 @@ static void hide_menu (UpdaterPlugin *up)
 		gtk_widget_destroy (up->menu);
 		up->menu = NULL;
 	}
-}
-
-
-/*----------------------------------------------------------------------------*/
-/* Error box                                                                  */
-/*----------------------------------------------------------------------------*/
-
-static void message (char *msg, int prog)
-{
-    GtkBuilder *builder;
-    GtkWidget *msg_dlg, *msg_msg, *msg_pb, *msg_btn;
-
-    textdomain (GETTEXT_PACKAGE);
-
-    builder = gtk_builder_new_from_file (PACKAGE_DATA_DIR "/ui/lxpanel-modal.ui");
-    msg_dlg = (GtkWidget *) gtk_builder_get_object (builder, "modal");
-    msg_msg = (GtkWidget *) gtk_builder_get_object (builder, "modal_msg");
-    msg_pb = (GtkWidget *) gtk_builder_get_object (builder, "modal_pb");
-    msg_btn = (GtkWidget *) gtk_builder_get_object (builder, "modal_ok");
-    gtk_widget_hide (GTK_WIDGET (gtk_builder_get_object (builder, "modal_cancel")));
-    gtk_label_set_text (GTK_LABEL (msg_msg), msg);
-    g_object_unref (builder);
-
-    gtk_widget_set_visible (msg_btn, prog == -3);
-    gtk_widget_set_visible (msg_pb, prog > -2);
-    g_signal_connect (msg_btn, "clicked", G_CALLBACK (close_msg), msg_dlg);
-
-    if (prog >= 0)
-    {
-        float progress = prog / 100.0;
-        gtk_progress_bar_set_fraction (GTK_PROGRESS_BAR (msg_pb), progress);
-    }
-    else if (prog == -1) gtk_progress_bar_pulse (GTK_PROGRESS_BAR (msg_pb));
-    gtk_widget_show (msg_dlg);
-}
-
-static gboolean close_msg (GtkButton *button, gpointer data)
-{
-    gtk_widget_destroy (GTK_WIDGET (data));
-    return FALSE;
 }
 
 
