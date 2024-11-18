@@ -1918,7 +1918,7 @@ nma_menu_add_vpn_submenu (GtkWidget *menu, NMApplet *applet)
 	gtk_widget_show (GTK_WIDGET (item));
 
 #ifdef LXPANEL_PLUGIN
-	if (has_usable_wifi (applet)) {
+	if (applet->country_set && has_usable_wifi (applet)) {
 		/* Add the "Hidden Wi-Fi network..." entry */
 		nma_menu_add_hidden_network_item (GTK_WIDGET (vpn_menu), applet);
 		nma_menu_add_create_hotspot_item (GTK_WIDGET (vpn_menu), applet);
@@ -2110,26 +2110,28 @@ static void nma_menu_show_cb (GtkWidget *menu, NMApplet *applet)
 		return;
 	}
 
-	if (!applet->country_set)
-	{
-		nma_menu_add_text_item (menu, _("Wi-Fi country is not set"));
-		GtkWidget *item = gtk_menu_item_new_with_label (_("Click here to set Wi-Fi country"));
-		g_signal_connect (G_OBJECT (item), "activate", G_CALLBACK (set_country), NULL);
-		gtk_menu_shell_append (GTK_MENU_SHELL (menu), item);
-		gtk_widget_show (item);
-		return;
-	}
-
 	if (nm_client_get_state (applet->nm_client) == NM_STATE_ASLEEP) {
 		nma_menu_add_text_item (menu, _("Networking disabled"));
 		return;
 	}
 
 #ifdef LXPANEL_PLUGIN
-	nma_menu_add_wifi_switch_item (menu, applet);
-	nma_menu_add_separator_item (menu);
+	if (!applet->country_set)
+	{
+		GtkWidget *item = gtk_menu_item_new_with_label (_("Click here to set Wi-Fi country"));
+		g_signal_connect (G_OBJECT (item), "activate", G_CALLBACK (set_country), NULL);
+		gtk_widget_set_tooltip_text (item, _("Wi-Fi country must be set to connect to Wi-Fi networks"));
+		gtk_menu_shell_append (GTK_MENU_SHELL (menu), item);
+		gtk_widget_show (item);
+		nma_menu_add_separator_item (menu);
+	}
+	else
+	{
+		nma_menu_add_wifi_switch_item (menu, applet);
+		nma_menu_add_separator_item (menu);
+		nma_menu_add_devices (menu, applet);
+	}
 #endif
-	nma_menu_add_devices (menu, applet);
 
 #ifndef LXPANEL_PLUGIN
 	if (has_usable_wifi (applet)) {
