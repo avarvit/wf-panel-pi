@@ -28,6 +28,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <fcntl.h>
 #include <libinput.h>
 #include <libudev.h>
+#include <libintl.h>
 #include <linux/input.h>
 #include <gtk/gtk.h>
 #include <gtk-layer-shell.h>
@@ -45,11 +46,19 @@ typedef struct {
     GtkMenu *menu;
     gulong chandle;
     gulong mhandle;
+    double x;
+    double y;
 } kb_menu_t;
 
 /*----------------------------------------------------------------------------*/
 /* Global data */
 /*----------------------------------------------------------------------------*/
+
+press_t pressed;
+double press_x;
+double press_y;
+
+gboolean touch_only;
 
 static GtkWindow *panel, *popwindow;
 static GtkLayerShellLayer orig_layer;
@@ -151,6 +160,11 @@ void append_menu_icon (GtkWidget *item, GtkWidget *image)
 {
     GtkWidget *box = gtk_bin_get_child (GTK_BIN (item));
     gtk_box_pack_end (GTK_BOX (box), image, FALSE, FALSE, 0);
+}
+
+void revert_textdomain (void)
+{
+    textdomain (GETTEXT_PACKAGE);
 }
 
 /*----------------------------------------------------------------------------*/
@@ -341,14 +355,26 @@ static void committed (GdkWindow *win, kb_menu_t *data)
     else
     {
         GdkRectangle rect;
-        int x, y;
         gtk_widget_get_allocation (GTK_WIDGET (panel), &rect);
-        gdk_window_get_device_position (gtk_widget_get_window (GTK_WIDGET (panel)), gdk_seat_get_pointer (gdk_display_get_default_seat (gdk_display_get_default ())), &x, &y, NULL);
-        rect.x = x;
+        rect.x = data->x;
         rect.y = 0;
         rect.width = 0;
         gtk_menu_popup_at_rect (data->menu, gtk_widget_get_window (GTK_WIDGET (panel)), &rect, GDK_GRAVITY_SOUTH_WEST, GDK_GRAVITY_NORTH_WEST, (GdkEvent *) ev);
     }
+}
+
+static void count_item (GtkWidget *, gpointer data)
+{
+    (* (int *) data)++;
+}
+
+gboolean check_menu (GtkWidget *menu)
+{
+    if (!GTK_IS_MENU (menu)) return FALSE;
+    int count = 0;
+    gtk_container_foreach (GTK_CONTAINER (menu), count_item, &count);
+    if (count == 0) return FALSE;
+    return TRUE;
 }
 
 void show_menu_with_kbd (GtkWidget *widget, GtkWidget *menu)
@@ -359,14 +385,36 @@ void show_menu_with_kbd (GtkWidget *widget, GtkWidget *menu)
 
     panel = find_panel (widget);
 
-    if (GTK_IS_BUTTON (widget)) data->button = widget;
+    if (GTK_IS_BUTTON (widget) || GTK_IS_EVENT_BOX (widget)) data->button = widget;
     else data->button = NULL;
     data->menu = GTK_MENU (menu);
+    data->x = -1.0;
+    data->y = -1.0;
 
     gtk_layer_set_layer (panel, GTK_LAYER_SHELL_LAYER_TOP);
     gtk_layer_set_keyboard_interactivity (panel, TRUE);
     data->chandle = g_signal_connect (gtk_widget_get_window (GTK_WIDGET (panel)), "committed", G_CALLBACK (committed), data);
 }
+
+void show_menu_with_kbd_at_xy (GtkWidget *widget, GtkWidget *menu, double x, double y)
+{
+    close_popup ();
+
+    kb_menu_t *data = g_new (kb_menu_t, 1);
+
+    panel = find_panel (widget);
+
+    data->button = NULL;
+    data->menu = GTK_MENU (menu);
+    data->x = x;
+    data->y = y;
+
+    gtk_layer_set_layer (panel, GTK_LAYER_SHELL_LAYER_TOP);
+    gtk_layer_set_keyboard_interactivity (panel, TRUE);
+    data->chandle = g_signal_connect (gtk_widget_get_window (GTK_WIDGET (panel)), "committed", G_CALLBACK (committed), data);
+}
+
+
 
 /*----------------------------------------------------------------------------*/
 /* Window popup with close on click-away */
@@ -561,6 +609,30 @@ void close_popup (void)
     if (idle_id) g_source_remove (idle_id);
     idle_id = 0;
 }
+
+void pass_right_click (GtkWidget *wid, double x, double y)
+{
+    GtkAllocation alloc;
+    GdkEventButton *ev;
+    GtkWidget *w;
+    gboolean ret;
+
+    gtk_widget_get_allocation (wid, &alloc);
+    ev = (GdkEventButton *) gdk_event_new (GDK_BUTTON_PRESS);
+    ev->send_event = TRUE;
+    ev->button = 3;
+    ev->window = gtk_widget_get_window (wid);
+    ev->x_root = x + alloc.x;
+    ev->y_root = y + alloc.y;
+    gdk_event_set_device ((GdkEvent *) ev, gdk_seat_get_pointer (gdk_display_get_default_seat (gdk_display_get_default ())));
+    w = wid;
+    while (!GTK_IS_WINDOW (w)) w = gtk_widget_get_parent (w);
+    g_signal_emit_by_name (w, "button-press-event", ev, &ret);
+    ev->type = GDK_BUTTON_RELEASE;
+    g_signal_emit_by_name (w, "button-release-event", ev, &ret);
+    pressed = PRESS_LONG;
+}
+
 
 /* End of file */
 /*----------------------------------------------------------------------------*/

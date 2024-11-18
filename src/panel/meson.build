@@ -1,75 +1,6 @@
-gnome = import('gnome')
-
-widget_sources = files(
-  'widgets/clock.cpp',
-  'widgets/clock/clock.c',
-  'widgets/kbdlayout.cpp',
-  'widgets/launchers.cpp',
-  'widgets/spacing.cpp',
-  'widgets/volumepulse.cpp',
-  'widgets/volumepulse/volumepulse.c',
-  'widgets/volumepulse/micpulse.c',
-  'widgets/volumepulse/commongui.c',
-  'widgets/volumepulse/pulse.c',
-  'widgets/volumepulse/bluetooth.c',
-  'widgets/smenu.cpp',
-  'widgets/smenu/menu.c',
-  'widgets/smenu/gtk-run.c',
-  'widgets/netman.cpp',
-  'widgets/netman/netman.c',
-  'widgets/netman/ap-menu-item.c',
-  'widgets/netman/applet.c',
-  'widgets/netman/applet-device-bt.c',
-  'widgets/netman/applet-device-wifi.c',
-  'widgets/netman/applet-vpn-request.c',
-  'widgets/netman/mb-menu-item.c',
-  'widgets/netman/applet-agent.c',
-  'widgets/netman/applet-device-ethernet.c',
-  'widgets/netman/applet-dialogs.c',
-  'widgets/netman/ethernet-dialog.c',
-  'widgets/netman/mobile-helpers.c',
-  'widgets/netman/utils.c',
-  'widgets/netman/eap-method.c',
-  'widgets/netman/nm-compat.c',
-  'widgets/netman/nm-shared-utils.c',
-  'widgets/bluetooth.cpp',
-  'widgets/bluetooth/bluetooth.c',
-  'widgets/ejecter.cpp',
-  'widgets/ejecter/ejecter.c',
-  'widgets/updater.cpp',
-  'widgets/updater/updater.c',
-  'widgets/cpu.cpp',
-  'widgets/cpu/cpu.c',
-  'widgets/cputemp.cpp',
-  'widgets/cputemp/cputemp.c',
-  'widgets/gpu.cpp',
-  'widgets/gpu/gpu.c',
-  'widgets/power.cpp',
-  'widgets/power/power.c',
-  'widgets/batt.cpp',
-  'widgets/batt/batt.c',
-  'widgets/batt/batt_sys.c',
-  'widgets/window-list/window-list.cpp',
-  'widgets/window-list/toplevel.cpp',
-  'widgets/launcher.c',
-  'widgets/tray/watcher.cpp',
-  'widgets/tray/tray.cpp',
-  'widgets/tray/item.cpp',
-  'widgets/tray/host.cpp'
-)
-
-resource_data = files(
-  'widgets/netman/8021x.ui',
-  'widgets/netman/connection-editor/ce-page-dsl.ui',
-  'widgets/netman/gsm-unlock.ui',
-  'widgets/netman/info.ui'
-)
-
-widget_sources += gnome.compile_resources(
-  'applet-resources',
-  'widgets/netman/applet.gresource.xml',
-  dependencies: resource_data,
-  source_dir: 'widgets/netman'
+panel_sources = files(
+  'panel.cpp',
+  'spacer.cpp'
 )
 
 util_sources = files(
@@ -79,7 +10,9 @@ util_sources = files(
   'wf-popover.cpp',
   'conf-utils.cpp',
   'configure.c',
-  'notification.c'
+  'notification.c',
+  'lxutils.c',
+  'launcher.c'
 )
 
 config_sources = files(
@@ -94,12 +27,22 @@ config_sources = files(
    'config/compound-option.cpp',
 )
 
-#deps = [gtkmm, wayland_client, wf_protos, wfconfig, gtklayershell, menu_cache, libfm, netman, nma, secret, notify, packagekit, libpulse, udev, dbusmenu_gtk, input, glm, evdev, libxml2, xkbcommon]
-deps = [gtkmm, wayland_client, wf_protos, gtklayershell, menu_cache, libfm, netman, nma, secret, notify, packagekit, libpulse, udev, dbusmenu_gtk, input, glm, evdev, libxml2, xkbcommon]
+proj_args = '-DPLUGIN_PATH="' + get_option ('prefix') + '/' + get_option('libdir') + '/wf-panel-pi/"'
 
-executable('wf-panel-pi', ['panel.cpp', 'lxutils.c'] + widget_sources + util_sources + config_sources,
-        dependencies: deps,
-        install: true
+gtklayershell = dependency('gtk-layer-shell-0', version: '>= 0.1', fallback: ['gtk-layer-shell', 'gtk_layer_shell_dep'])
+udev = dependency('libudev')
+input = dependency('libinput')
+evdev = dependency('libevdev')
+libxml2 = dependency('libxml-2.0')
+panel_deps = [ gtklayershell, udev, input, evdev, libxml2 ]
+
+executable('wf-panel-pi', panel_sources + util_sources + config_sources,
+        dependencies: deps + panel_deps,
+        install: true,
+        export_dynamic: true,
+        c_args : proj_args,
+        cpp_args : proj_args,
+        include_directories : incdir
 )
 
 install_data('wfpanelctl', install_dir : '/usr/bin')

@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<wf-panel-pi>
+	<plugin name="panel">
+	<_short>Panel</_short>	
+	<group>
+	<_short>KbdLayout</_short>
+	<option name="kbdlayout_font" type="string">
+		<_short>KbdLayout Font</_short>
+		<default>default</default>
+	</option>
+	</group>
+	</plugin>
+</wf-panel-pi>

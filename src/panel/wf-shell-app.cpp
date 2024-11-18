@@ -11,7 +11,7 @@
 #include <libfm/fm-gtk.h>
 #include <sys/time.h>
 extern "C" {
-#include "widgets/launcher.h"
+#include "launcher.h"
 }
 
 std::string WayfireShellApp::get_config_file()
@@ -41,6 +41,12 @@ bool WayfireShellApp::parse_cfgfile(const Glib::ustring & option_name,
     std::cout << "Using custom config file " << value << std::endl;
     cmdline_config = value;
     return true;
+}
+
+void WayfireShellApp::rescan_xml_directory(void)
+{
+    std::vector<std::string> xmldirs(1, METADATA_DIR);
+    wf::config::reload_xml_files (this->config, xmldirs);
 }
 
 #define INOT_BUF_SIZE (1024 * sizeof(inotify_event))
@@ -90,8 +96,6 @@ void WayfireShellApp::on_activate()
 {
     app->hold();
 
-    fm_gtk_init (NULL);
-
     if (!g_strcmp0 (getenv ("USER"), "rpi-first-boot-wizard")) wizard = true;
     else wizard = false;
 
@@ -116,7 +120,7 @@ void WayfireShellApp::on_activate()
     init_launchers ();
 
     this->config = wf::config::build_configuration(
-        xmldirs, RESOURCE_DIR "/defaults.ini",
+        xmldirs, PACKAGE_DATA_DIR "/defaults.ini",
         get_config_file());
 
     inotify_fd = inotify_init();

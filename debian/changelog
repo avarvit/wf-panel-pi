@@ -1,3 +1,78 @@
+wf-panel-pi (0.88) bookworm; urgency=medium
+
+  * Fix for some menu anomalies
+
+ -- Simon Long <simon@raspberrypi.com>  Tue, 29 Oct 2024 07:28:15 +0000
+
+wf-panel-pi (0.87) bookworm; urgency=medium
+
+  * Bypass libfm when loading main menu icons
+  * Do not check PSU on CM5
+  * Do not try to open empty menus
+
+ -- Simon Long <simon@raspberrypi.com>  Fri, 25 Oct 2024 12:40:14 +0100
+
+wf-panel-pi (0.86) bookworm; urgency=medium
+
+  * Make touch-only gestures a global option
+
+ -- Simon Long <simon@raspberrypi.com>  Thu, 17 Oct 2024 14:06:21 +0100
+
+wf-panel-pi (0.85) bookworm; urgency=medium
+
+  * Add long press gesture for touchscreen
+
+ -- Simon Long <simon@raspberrypi.com>  Mon, 14 Oct 2024 09:32:19 +0100
+
+wf-panel-pi (0.84) bookworm; urgency=medium
+
+  * Add Connect plugin
+
+ -- Simon Long <simon@raspberrypi.com>  Fri, 11 Oct 2024 14:37:12 +0100
+
+wf-panel-pi (0.83) bookworm; urgency=medium
+
+  * Add Squeekboard
+
+ -- Simon Long <simon@raspberrypi.com>  Tue, 24 Sep 2024 09:38:59 +0100
+
+wf-panel-pi (0.82) bookworm; urgency=medium
+
+  * Relocate autopair flag
+
+ -- Simon Long <simon@raspberrypi.com>  Tue, 17 Sep 2024 14:11:29 +0100
+
+wf-panel-pi (0.81) bookworm; urgency=medium
+
+  * Fix shadows on undecorated windows
+
+ -- Simon Long <simon@raspberrypi.com>  Thu, 12 Sep 2024 13:59:57 +0100
+
+wf-panel-pi (0.80) bookworm; urgency=medium
+
+  * Use flag file for autopair
+
+ -- Simon Long <simon@raspberrypi.com>  Tue, 10 Sep 2024 15:32:34 +0100
+
+wf-panel-pi (0.79) bookworm; urgency=medium
+
+  * Fix bug when setting wi-fi country
+  * Increase memory threshold for high resolution warning
+
+ -- Simon Long <simon@raspberrypi.com>  Wed, 28 Aug 2024 11:39:52 +0100
+
+wf-panel-pi (0.78) bookworm; urgency=medium
+
+  * Translation update
+
+ -- Simon Long <simon@raspberrypi.com>  Tue, 16 Jul 2024 07:54:53 +0100
+
+wf-panel-pi (0.77) bookworm; urgency=medium
+
+  * Convert plugins to shared objects
+
+ -- Simon Long <simon@raspberrypi.com>  Mon, 08 Jul 2024 11:40:35 +0100
+
 wf-panel-pi (0.76) bookworm; urgency=medium
 
   * Tweaks to PackageKit messages

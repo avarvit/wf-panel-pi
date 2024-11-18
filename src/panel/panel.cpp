@@ -7,6 +7,7 @@ extern "C" {
 #include <gtkmm/headerbar.h>
 #include <gtkmm/hvbox.h>
 #include <gtkmm/application.h>
+#include <gtkmm/gesturelongpress.h>
 #include <gdkmm/display.h>
 #include <gdkmm/seat.h>
 #include <gdk/gdkwayland.h>
@@ -16,31 +17,13 @@ extern "C" {
 #include <iostream>
 #include <sstream>
 #include <sys/time.h>
+#include <dlfcn.h>
 
 #include <map>
 
 #include "panel.hpp"
 #include "gtk-utils.hpp"
-
-#include "widgets/clock.hpp"
-#include "widgets/kbdlayout.hpp"
-#include "widgets/launchers.hpp"
-#include "widgets/spacing.hpp"
-#include "widgets/volumepulse.hpp"
-#include "widgets/smenu.hpp"
-#include "widgets/netman.hpp"
-#include "widgets/bluetooth.hpp"
-#include "widgets/ejecter.hpp"
-#include "widgets/updater.hpp"
-#include "widgets/cpu.hpp"
-#include "widgets/cputemp.hpp"
-#include "widgets/gpu.hpp"
-#include "widgets/power.hpp"
-#include "widgets/batt.hpp"
-#include "widgets/notify.hpp"
-#include "widgets/window-list/window-list.hpp"
-#include "widgets/tray/tray.hpp"
-
+#include "spacer.hpp"
 #include "wf-autohide-window.hpp"
 
 extern "C" {
@@ -122,6 +105,7 @@ class WayfirePanel::impl
     Gtk::MenuItem notif;
     Gtk::MenuItem appset;
     std::string conf_plugin;
+    Glib::RefPtr<Gtk::GestureLongPress> gesture;
 
     using Widget = std::unique_ptr<WayfireWidget>;
     using WidgetContainer = std::vector<Widget>;
@@ -130,8 +114,8 @@ class WayfirePanel::impl
     WayfireOutput *output;
     bool wizard = WayfireShellApp::get().wizard;
     bool real;
-    bool pressed;
     WfOption <int> icon_size {"panel/icon_size"};
+    WfOption <bool> gestures_touch_only {"panel/gestures_touch_only"};
 
 #if 0
     WfOption<std::string> bg_color{"panel/background_color"};
@@ -203,10 +187,7 @@ class WayfirePanel::impl
 
     void create_window()
     {
-        setlocale (LC_ALL, "");
-        bindtextdomain (GETTEXT_PACKAGE, PACKAGE_LOCALE_DIR);
-        bind_textdomain_codeset (GETTEXT_PACKAGE, "UTF-8");
-        textdomain (GETTEXT_PACKAGE);
+        touch_only = gestures_touch_only;
 
         window = std::make_unique<WayfireAutohidingWindow>(output, "panel");
         window->set_size_request(1, real ? minimal_panel_height : 1);
@@ -231,7 +212,6 @@ class WayfirePanel::impl
             gtk_layer_set_margin(window->gobj(), GTK_LAYER_SHELL_EDGE_RIGHT, 1);
             gtk_layer_set_margin(window->gobj(), GTK_LAYER_SHELL_EDGE_BOTTOM, 1);
         }
-
         monitor_num.set_callback (update_panels);
 
         window->set_name ("PanelToplevel");
@@ -274,6 +254,12 @@ class WayfirePanel::impl
         window->signal_button_press_event().connect(sigc::mem_fun(this, &WayfirePanel::impl::on_button_press_event));
         window->signal_button_release_event().connect(sigc::mem_fun(this, &WayfirePanel::impl::on_button_release_event));
 
+        gesture = Gtk::GestureLongPress::create(*window);
+        gesture->set_propagation_phase(Gtk::PHASE_BUBBLE);
+        gesture->signal_pressed().connect(sigc::mem_fun(*this, &WayfirePanel::impl::on_gesture_pressed));
+        gesture->signal_end().connect(sigc::mem_fun(*this, &WayfirePanel::impl::on_gesture_end));
+        gesture->set_touch_only(touch_only);
+
         if (wizard || !real)
         {
             window->set_auto_exclusive_zone (false);
@@ -290,20 +276,18 @@ class WayfirePanel::impl
 
     bool on_button_press_event(GdkEventButton* event)
     {
-        pressed = true;
+        pressed = PRESS_SHORT;
         return false;
     }
 
     bool on_button_release_event(GdkEventButton* event)
     {
-        if (!pressed) return false;
-        pressed = false;
-        if (!window->has_popover() && event->type == GDK_BUTTON_RELEASE && event->button == 3)
+        if (pressed == PRESS_NONE) return false;
+        pressed = PRESS_NONE;
+        if (!window->has_popover() && event->button == 3)
         {
             conf_plugin = "gtkmm";
             cplug.set_sensitive (false);
-
-            // get mouse coords to parent window coords
 
             // child of window is first hbox
             std::vector<Gtk::Widget*> winch = window->get_children ();
@@ -321,35 +305,42 @@ class WayfirePanel::impl
                             std::vector<Gtk::Widget*> plugins = chbox->get_children ();
                             for (auto &plugin : plugins)
                             {
-                                int x, y;
-                                Gdk::ModifierType mod;
-
                                 if (!plugin->is_visible ()) continue;
 
-                                // ignore task list (scrolled window) and spacers (boxes)
-                                if (GTK_IS_SCROLLED_WINDOW (plugin->gobj()) || GTK_IS_BOX (plugin->gobj())) continue;
-
                                 // check if the x position of the mouse is within the plugin
-                                plugin->get_window()->get_device_position (Gdk::Display::get_default()->get_default_seat()->get_pointer (), x, y, mod);
                                 Gtk::Allocation alloc = plugin->get_allocation ();
 
-                                if (x >= alloc.get_x () && x <= alloc.get_x () + alloc.get_width())
+                                if (event->x_root >= alloc.get_x () && event->x_root <= alloc.get_x () + alloc.get_width())
                                 {
                                     conf_plugin = plugin->get_name();
-                                    if (conf_plugin.substr (0,5) != "gtkmm") cplug.set_sensitive (true);
+                                    if (conf_plugin == "spacing") cplug.hide ();
+                                    else cplug.show ();
+                                    if (can_configure (conf_plugin.c_str())) cplug.set_sensitive (true);
                                     show_menu_with_kbd (GTK_WIDGET (plugin->gobj()), GTK_WIDGET (menu.gobj()));
-                                    return true;
+                                    return false;
                                 }
                             }
                         }
                     }
                     // not matched any widgets - on the empty area of the bar...
-                    show_menu_with_kbd (GTK_WIDGET (window->gobj()), GTK_WIDGET (menu.gobj()));
-                    return true;
+                    cplug.hide ();
+                    show_menu_with_kbd_at_xy (GTK_WIDGET (window->gobj()), GTK_WIDGET (menu.gobj()), event->x_root, event->y_root);
                 }
             }
         }
         return false;
+    }
+
+    void on_gesture_pressed(double x, double y)
+    {
+        pressed = PRESS_LONG;
+        press_x = x;
+        press_y = y;
+    }
+
+    void on_gesture_end(GdkEventSequence *)
+    {
+        if (pressed == PRESS_LONG) pass_right_click (GTK_WIDGET (window->gobj()), press_x, press_y);
     }
 
     void do_configure()
@@ -359,7 +350,7 @@ class WayfirePanel::impl
 
     void do_plugin_configure()
     {
-        if (conf_plugin.substr (0,5) != "gtkmm") plugin_config_dialog (conf_plugin.c_str());
+        plugin_config_dialog (conf_plugin.c_str());
     }
 
     void do_notify_configure()
@@ -395,51 +386,6 @@ class WayfirePanel::impl
 
     Widget widget_from_name(std::string name)
     {
-        if (name == "launchers")
-        {
-            return Widget(new WayfireLaunchers());
-        }
-
-        if (name == "clock")
-        {
-            return Widget(new WayfireClock());
-        }
-
-        if (name == "kbdlayout")
-            return Widget(new WayfireKbdLayout());
-        if (name == "volumepulse")
-            return Widget(new WayfireVolumepulse());
-        if (name == "smenu")
-            return Widget(new WayfireSmenu());
-        if (name == "netman")
-            return Widget(new WayfireNetman());
-        if (name == "bluetooth")
-            return Widget(new WayfireBluetooth());
-        if (name == "ejecter")
-            return Widget(new WayfireEjecter());
-        if (name == "updater")
-            return Widget(new WayfireUpdater());
-        if (name == "cpu")
-            return Widget(new WayfireCPU());
-        if (name == "cputemp")
-            return Widget(new WayfireCPUTemp());
-        if (name == "gpu")
-            return Widget(new WayfireGPU());
-        if (name == "power")
-            return Widget(new WayfirePower());
-        if (name == "batt")
-            return Widget(new WayfireBatt());
-
-        if (name == "window-list")
-        {
-            return Widget(new WayfireWindowList(output));
-        }
-
-        if (name == "tray")
-        {
-            return Widget(new WayfireStatusNotifier());
-        }
-
         std::string spacing = "spacing";
         if (name.find(spacing) == 0)
         {
@@ -451,15 +397,35 @@ class WayfirePanel::impl
                 std::cerr << "Invalid spacing, " << pixel << std::endl;
                 return nullptr;
             }
-
-            return Widget(new WayfireSpacing(pixel));
+            try
+            {
+                return Widget(new WayfireSpacing(pixel));
+            }
+            catch (...)
+            {
+                return nullptr;
+            }
         }
 
         if (name != "none")
         {
-            std::cerr << "Invalid widget: " << name << std::endl;
+            char *libname = g_strdup_printf (PLUGIN_PATH "lib%s.so", name.c_str());
+            void *wid = dlopen (libname, RTLD_LAZY);
+            g_free (libname);
+            if (wid)
+            {
+                create_t *create_widget = (create_t *) dlsym (wid, "create");
+                try
+                {
+                    return Widget (create_widget ());
+                }
+                catch (...)
+                {
+                    return nullptr;
+                }
+            }
+            else std::cerr << "Could not open plugin - " << dlerror () << std::endl;
         }
-
         return nullptr;
     }
 
@@ -483,6 +449,7 @@ class WayfirePanel::impl
     void reload_widgets(std::string list, WidgetContainer& container,
         Gtk::HBox& box)
     {
+        WayfirePanelApp::get().rescan_xml_directory ();
         container.clear();
         auto widgets = tokenize(list);
         for (auto widget_name : widgets)
@@ -496,6 +463,9 @@ class WayfirePanel::impl
             widget->widget_name = widget_name;
             widget->init(&box);
             container.push_back(std::move(widget));
+
+            // a badly-written widget could reset the textdomain to a local value - reset back to the system value after each load
+            textdomain (GETTEXT_PACKAGE);
         }
     }
 
@@ -723,6 +693,11 @@ WayfirePanel* WayfirePanelApp::panel_for_wl_output(wl_output *output)
     return priv->panel.get();
 }
 
+WayfirePanel* WayfirePanelApp::get_panel(void)
+{
+    return priv->panel.get();
+}
+
 void WayfirePanelApp::handle_output_removed(WayfireOutput *output)
 {
     priv->outputs.erase (std::remove(priv->outputs.begin(), priv->outputs.end(), output), priv->outputs.end());
@@ -756,50 +731,6 @@ void WayfirePanelApp::create(int argc, char **argv)
     g_dbus_node_info_unref (introspection_data);
 }
 
-const char *WayfirePanelApp::display_name (std::string type)
-{
-    if (type == "bluetooth") return WayfireBluetooth::display_name();
-    if (type == "clock") return WayfireClock::display_name();
-    if (type == "kbdlayout") return WayfireKbdLayout::display_name();
-    if (type == "cpu") return WayfireCPU::display_name();
-    if (type == "cputemp") return WayfireCPUTemp::display_name();
-    if (type == "ejecter") return WayfireEjecter::display_name();
-    if (type == "gpu") return WayfireGPU::display_name();
-    if (type == "launchers") return WayfireLaunchers::display_name();
-    if (type == "netman") return WayfireNetman::display_name();
-    if (type == "power") return WayfirePower::display_name();
-    if (type == "batt") return WayfireBatt::display_name();
-    if (type == "smenu") return WayfireSmenu::display_name();
-    if (type == "updater") return WayfireUpdater::display_name();
-    if (type == "volumepulse") return WayfireVolumepulse::display_name();
-    if (type == "window-list") return WayfireWindowList::display_name();
-    if (type == "notify") return WayfireNotify::display_name();
-    if (type == "tray") return WayfireStatusNotifier::display_name();
-    return "<Unknown>";
-}
-
-const conf_table_t *WayfirePanelApp::config_params (std::string type)
-{
-    if (type == "bluetooth") return WayfireBluetooth::config_params();
-    if (type == "clock") return WayfireClock::config_params();
-    if (type == "kbdlayout") return WayfireKbdLayout::config_params();
-    if (type == "cpu") return WayfireCPU::config_params();
-    if (type == "cputemp") return WayfireCPUTemp::config_params();
-    if (type == "ejecter") return WayfireEjecter::config_params();
-    if (type == "gpu") return WayfireGPU::config_params();
-    if (type == "launchers") return WayfireLaunchers::config_params();
-    if (type == "netman") return WayfireNetman::config_params();
-    if (type == "power") return WayfirePower::config_params();
-    if (type == "batt") return WayfireBatt::config_params();
-    if (type == "smenu") return WayfireSmenu::config_params();
-    if (type == "updater") return WayfireUpdater::config_params();
-    if (type == "volumepulse") return WayfireVolumepulse::config_params();
-    if (type == "window-list") return WayfireWindowList::config_params();
-    if (type == "notify") return WayfireNotify::config_params();
-    if (type == "tray") return WayfireStatusNotifier::config_params();
-    return NULL;
-}
-
 WayfirePanelApp::~WayfirePanelApp() = default;
 WayfirePanelApp::WayfirePanelApp(int argc, char **argv) :
     WayfireShellApp(argc, argv), priv(new impl())
@@ -807,6 +738,11 @@ WayfirePanelApp::WayfirePanelApp(int argc, char **argv) :
 
 int main(int argc, char **argv)
 {
+    setlocale (LC_ALL, "");
+    bindtextdomain (GETTEXT_PACKAGE, PACKAGE_LOCALE_DIR);
+    bind_textdomain_codeset (GETTEXT_PACKAGE, "UTF-8");
+    textdomain (GETTEXT_PACKAGE);
+
     WayfirePanelApp::create(argc, argv);
     return 0;
 }
