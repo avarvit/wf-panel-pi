@@ -8,8 +8,8 @@
 #include "config/file.hpp"
 
 #include <unistd.h>
-#include <libfm/fm-gtk.h>
 #include <sys/time.h>
+
 extern "C" {
 #include "launcher.h"
 }
@@ -138,7 +138,7 @@ void WayfireShellApp::on_activate()
         [=] (const GMonitor& monitor) { this->monitors_changed(); });
 
     // initial monitors
-    this->monitors_changed ();
+    this->update_monitors ();
 }
 
 bool WayfireShellApp::update_monitors ()

@@ -46,6 +46,7 @@ extern press_t pressed;
 extern double press_x, press_y;
 
 extern gboolean touch_only;
+extern gboolean is_pi_var;
 
 typedef struct {
     GtkWidget *da;                          /* Drawing area */
@@ -74,6 +75,7 @@ extern void revert_textdomain (void);
 extern void graph_init (PluginGraph *graph);
 extern void graph_reload (PluginGraph *graph, int icon_size, GdkRGBA background, GdkRGBA foreground, GdkRGBA throttle1, GdkRGBA throttle2);
 extern void graph_new_point (PluginGraph *graph, float value, int state, char *label);
+extern void graph_free (PluginGraph *graph);
 
 extern gboolean check_menu (GtkWidget *menu);
 extern void show_menu_with_kbd (GtkWidget *button, GtkWidget *menu);
@@ -82,6 +84,26 @@ extern void show_menu_with_kbd_at_xy (GtkWidget *widget, GtkWidget *menu, double
 extern void popup_window_at_button (GtkWidget *window, GtkWidget *button);
 extern void close_popup (void);
 extern void pass_right_click (GtkWidget *wid, double x, double y);
+extern GtkGesture *add_long_press (GtkWidget *target, GCallback callback, gpointer data);
+
+extern gboolean is_pi (void);
+
+#define lxpanel_notify(panel,msg) wfpanel_notify(msg)
+#define lxpanel_notify_clear(seq) wfpanel_notify_clear(seq)
+#define lxpanel_plugin_update_menu_icon(item,icon) update_menu_icon(item,icon)
+#define lxpanel_plugin_append_menu_icon(item,icon) append_menu_icon(item,icon)
+#define wrap_new_menu_item(plugin,text,maxlen,icon) new_menu_item(text,maxlen,icon,plugin->icon_size)
+#define wrap_set_menu_icon(plugin,image,icon) set_menu_icon(image,icon,plugin->icon_size)
+#define wrap_set_taskbar_icon(plugin,image,icon) set_taskbar_icon(image,icon,plugin->icon_size)
+#define wrap_get_menu_label(item) get_menu_label(item)
+#define wrap_show_menu(plugin,menu) show_menu_with_kbd(plugin,menu)
+#define wrap_icon_size(plugin) (plugin->icon_size)
+#define wrap_is_at_bottom(plugin) (plugin->bottom)
+#define wrap_popup_at_button(plugin,window,button) popup_window_at_button(window,button)
+#define CHECK_LONGPRESS if(pressed==PRESS_LONG){pressed = PRESS_NONE;return;}pressed = PRESS_NONE;
+
+#undef _
+#define _(a) dgettext(GETTEXT_PACKAGE,a)
 
 #endif
 

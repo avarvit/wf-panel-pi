@@ -188,6 +188,8 @@ class WayfirePanel::impl
     void create_window()
     {
         touch_only = gestures_touch_only;
+        if (!access ("/boot/firmware/config.txt", R_OK)) is_pi_var = TRUE;
+        else is_pi_var = FALSE;
 
         window = std::make_unique<WayfireAutohidingWindow>(output, "panel");
         window->set_size_request(1, real ? minimal_panel_height : 1);
@@ -195,7 +197,7 @@ class WayfirePanel::impl
         {
             panel_layer.set_callback(set_panel_layer);
             set_panel_layer(); // initial setting
-            lxpanel_notify_init (notifications, notify_timeout, window->gobj ());
+            wfpanel_notify_init (notifications, notify_timeout, window->gobj ());
         }
 
         gtk_layer_set_anchor(window->gobj(), GTK_LAYER_SHELL_EDGE_LEFT, wizard ? false : true);
@@ -254,11 +256,7 @@ class WayfirePanel::impl
         window->signal_button_press_event().connect(sigc::mem_fun(this, &WayfirePanel::impl::on_button_press_event));
         window->signal_button_release_event().connect(sigc::mem_fun(this, &WayfirePanel::impl::on_button_release_event));
 
-        gesture = Gtk::GestureLongPress::create(*window);
-        gesture->set_propagation_phase(Gtk::PHASE_BUBBLE);
-        gesture->signal_pressed().connect(sigc::mem_fun(*this, &WayfirePanel::impl::on_gesture_pressed));
-        gesture->signal_end().connect(sigc::mem_fun(*this, &WayfirePanel::impl::on_gesture_end));
-        gesture->set_touch_only(touch_only);
+        gesture = add_longpress_default (*window);
 
         if (wizard || !real)
         {
@@ -331,18 +329,6 @@ class WayfirePanel::impl
         return false;
     }
 
-    void on_gesture_pressed(double x, double y)
-    {
-        pressed = PRESS_LONG;
-        press_x = x;
-        press_y = y;
-    }
-
-    void on_gesture_end(GdkEventSequence *)
-    {
-        if (pressed == PRESS_LONG) pass_right_click (GTK_WIDGET (window->gobj()), press_x, press_y);
-    }
-
     void do_configure()
     {
         open_config_dialog ();
@@ -360,7 +346,7 @@ class WayfirePanel::impl
 
     void do_appearance_set()
     {
-        system ("pipanel -3 &");
+        system ("pipanel taskbar &");
     }
 
     bool on_delete(GdkEventAny *ev)
@@ -377,11 +363,14 @@ class WayfirePanel::impl
         if (!center_box.get_children().empty())
         {
             content_box.set_center_widget(center_box);
+            center_box.show();
         }
 
-        center_box.show_all();
         window->add(content_box);
-        window->show_all();
+        left_box.show();
+        right_box.show();
+        content_box.show();
+        window->show();
     }
 
     Widget widget_from_name(std::string name)
@@ -392,7 +381,7 @@ class WayfirePanel::impl
             auto pixel_str = name.substr(spacing.size());
             int pixel = std::atoi(pixel_str.c_str());
 
-            if (pixel <= 0)
+            if (pixel < 0)
             {
                 std::cerr << "Invalid spacing, " << pixel << std::endl;
                 return nullptr;
@@ -532,7 +521,7 @@ class WayfirePanel::impl
 
     void handle_config_reload()
     {
-        if (real) lxpanel_notify_init (notifications, notify_timeout, window->gobj ());
+        if (real) wfpanel_notify_init (notifications, notify_timeout, window->gobj ());
         for (auto& w : left_widgets)
         {
             w->handle_config_reload();
@@ -553,13 +542,13 @@ class WayfirePanel::impl
     {
         if (!g_strcmp0 (name, "notify"))
         {
-            lxpanel_notify (cmd);
+            wfpanel_notify (cmd);
             return;
         }
 
         if (!g_strcmp0 (name, "critical"))
         {
-            lxpanel_critical (cmd);
+            wfpanel_critical (cmd);
             return;
         }
 
@@ -580,7 +569,7 @@ class WayfirePanel::impl
     {
         GdkDisplay *dpy = gdk_display_get_default ();
         GdkScreen *scr = gdk_display_get_default_screen (dpy);
-        GdkMonitor *mon;
+        GdkMonitor *mon = NULL;
         int try_mon;
         const char *mnumstr = ((std::string) monitor_num).c_str();
 
@@ -610,7 +599,7 @@ class WayfirePanel::impl
             }
         }
 
-        gtk_layer_set_monitor (window->gobj(), mon);
+        if (mon) gtk_layer_set_monitor (window->gobj(), mon);
         return try_mon >= 0 ? try_mon : 0;
     }
 
@@ -664,7 +653,7 @@ void WayfirePanelApp::handle_new_output(WayfireOutput *output)
 {
     priv->outputs.push_back (output);
     if (!priv->panel)
-        priv->panel = std::unique_ptr<WayfirePanel> (new WayfirePanel (output, true));
+        priv->panel = std::make_unique<WayfirePanel> (output, true);
 
     update_panels ();
 }
@@ -679,7 +668,7 @@ void WayfirePanelApp::update_panels ()
     for (auto& p : priv->outputs)
     {
         if (p->monitor != mon)
-            priv->dummies.push_back (std::unique_ptr<WayfirePanel> (new WayfirePanel(p, false)));
+            priv->dummies.push_back (std::make_unique<WayfirePanel> (p, false));
     }
 }
 

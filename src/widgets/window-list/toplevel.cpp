@@ -76,7 +76,7 @@ class WayfireToplevel::impl
         button.property_scale_factor().signal_changed()
             .connect(sigc::mem_fun(this, &WayfireToplevel::impl::on_scale_update));
         button.signal_button_release_event().connect(
-            sigc::mem_fun(this, &WayfireToplevel::impl::on_button_press_event));
+            sigc::mem_fun(this, &WayfireToplevel::impl::on_release));
 
         icon_size.set_callback (sigc::mem_fun (*this, &WayfireToplevel::impl::on_scale_update));
 
@@ -103,10 +103,7 @@ class WayfireToplevel::impl
         drag_gesture->signal_drag_end().connect_notify(
             sigc::mem_fun(this, &WayfireToplevel::impl::on_drag_end));
 
-        gesture = Gtk::GestureLongPress::create(button);
-        gesture->set_propagation_phase(Gtk::PHASE_BUBBLE);
-        gesture->signal_pressed().connect(sigc::mem_fun(this, &WayfireToplevel::impl::on_gesture_pressed));
-        gesture->set_touch_only(touch_only);
+        gesture = detect_long_press (button);
 
         this->window_list = window_list;
     }
@@ -196,7 +193,7 @@ class WayfireToplevel::impl
         }
     }
 
-    bool on_button_press_event(GdkEventButton *event)
+    bool on_release (GdkEventButton *event)
     {
         switch (event->button)
         {
@@ -212,11 +209,6 @@ class WayfireToplevel::impl
 
         pressed = PRESS_NONE;
         return true;
-    }
-
-    void on_gesture_pressed (double x, double y)
-    {
-        pressed = PRESS_LONG;
     }
 
     void on_menu_minimize()
@@ -713,6 +705,8 @@ Icon get_from_desktop_app_info(std::string app_id)
         while (1)
         {
             dir = dirs.substr (start, end - start);
+            size_t ind = dir.find ('~');
+            if (ind != std::string::npos) dir.replace (ind, 1, std::getenv ("HOME"));
 
             app_info = Gio::DesktopAppInfo::create_from_filename (dir + "/applications/" + app_id + ".desktop");
             if (app_info) return app_info->get_icon();
@@ -739,6 +733,8 @@ Icon get_from_desktop_app_info(std::string app_id)
         while (1)
         {
             dir = dirs.substr (start, end - start);
+            size_t ind = dir.find ('~');
+            if (ind != std::string::npos) dir.replace (ind, 1, std::getenv ("HOME"));
 
             // loop through all files in the applications subdirectory
             for (const auto & entry : std::filesystem::directory_iterator (dir + "/applications/", ec))
@@ -774,8 +770,8 @@ Icon get_from_desktop_app_info(std::string app_id)
                 stem = entry.path().stem().string();
                 id = tolower (stem.substr (stem.find_last_of (".") + 1));
 
-                if (id.find (cmp_id1) != std::string::npos || cmp_id1.find (id) != std::string::npos
-                    || id.find (cmp_id2) != std::string::npos || cmp_id2.find (id) != std::string::npos)
+                if (cmp_id1.length() > 1 && (id.find (cmp_id1) != std::string::npos || cmp_id1.find (id) != std::string::npos)
+                    || cmp_id2.length () > 1 && (id.find (cmp_id2) != std::string::npos || cmp_id2.find (id) != std::string::npos))
                 {
                     app_info = Gio::DesktopAppInfo::create_from_filename (entry.path().string());
                     if (app_info) return app_info->get_icon();

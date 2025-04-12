@@ -55,10 +55,11 @@ typedef struct {
 /*----------------------------------------------------------------------------*/
 
 press_t pressed;
-double press_x;
-double press_y;
+double press_x, press_y;
 
 gboolean touch_only;
+
+gboolean is_pi_var;
 
 static GtkWindow *panel, *popwindow;
 static GtkLayerShellLayer orig_layer;
@@ -320,6 +321,14 @@ void graph_init (PluginGraph *graph)
     graph->ring_cursor = 0;
 }
 
+void graph_free (PluginGraph *graph)
+{
+    if (graph->pixmap) cairo_surface_destroy (graph->pixmap);
+    if (graph->samples) g_free (graph->samples);
+    if (graph->samp_states) g_free (graph->samp_states);
+    gtk_widget_destroy (graph->da);
+}
+
 /*----------------------------------------------------------------------------*/
 /* Menu popup with keyboard handling */
 /*----------------------------------------------------------------------------*/
@@ -575,7 +584,7 @@ void popup_window_at_button (GtkWidget *window, GtkWidget *button)
             cmd = g_strdup_printf ("wlr-randr | sed -nr '/%s/,/^~ /{s/Transform:\\s*(.*)/\\1/p}' | tr -d ' '", mname);
             if ((fp = popen (cmd, "r")) != NULL)
             {
-                fscanf (fp, "%d", &orient);
+                if (fscanf (fp, "%d", &orient) != 1) orient = 0;
                 pclose (fp);
             }
             g_free (cmd);
@@ -610,6 +619,10 @@ void close_popup (void)
     idle_id = 0;
 }
 
+/*----------------------------------------------------------------------------*/
+/* Long press gestures */
+/*----------------------------------------------------------------------------*/
+
 void pass_right_click (GtkWidget *wid, double x, double y)
 {
     GtkAllocation alloc;
@@ -633,6 +646,33 @@ void pass_right_click (GtkWidget *wid, double x, double y)
     pressed = PRESS_LONG;
 }
 
+static void gesture_pressed (GtkGestureLongPress *, gdouble x, gdouble y, gpointer)
+{
+    pressed = PRESS_LONG;
+    press_x = x;
+    press_y = y;
+}
+
+static void gesture_end_default (GtkGestureLongPress *, GdkEventSequence *, GtkWidget *target)
+{
+    if (pressed == PRESS_LONG) pass_right_click (target, press_x, press_y);
+}
+
+GtkGesture *add_long_press (GtkWidget *target, GCallback callback, gpointer data)
+{
+    GtkGesture *gesture = gtk_gesture_long_press_new (target);
+    gtk_gesture_single_set_touch_only (GTK_GESTURE_SINGLE (gesture), touch_only);
+    g_signal_connect (gesture, "pressed", G_CALLBACK (gesture_pressed), NULL);
+    if (callback) g_signal_connect (gesture, "end", G_CALLBACK (callback), data);
+    else g_signal_connect (gesture, "end", G_CALLBACK (gesture_end_default), target);
+    gtk_event_controller_set_propagation_phase (GTK_EVENT_CONTROLLER (gesture), GTK_PHASE_BUBBLE);
+    return gesture;
+}
+
+gboolean is_pi (void)
+{
+    return is_pi_var;
+}
 
 /* End of file */
 /*----------------------------------------------------------------------------*/

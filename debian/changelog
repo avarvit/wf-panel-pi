@@ -1,3 +1,45 @@
+wf-panel-pi (0.98) bookworm; urgency=medium
+
+  * Add separator; set initial state of plugin icons correctly
+
+ -- Simon Long <simon@raspberrypi.com>  Mon, 07 Apr 2025 14:40:03 +0100
+
+wf-panel-pi (0.97) bookworm; urgency=medium
+
+  * Remove hotplug delay at startup
+
+ -- Simon Long <simon@raspberrypi.com>  Tue, 01 Apr 2025 08:20:06 +0100
+
+wf-panel-pi (0.96) bookworm; urgency=medium
+
+  * Add generic is_pi function for plugins
+
+ -- Simon Long <simon@raspberrypi.com>  Wed, 26 Mar 2025 13:50:16 +0000
+
+wf-panel-pi (0.95) bookworm; urgency=medium
+
+  * Update build dependency for wlroots 0.18
+
+ -- Simon Long <simon@raspberrypi.com>  Wed, 19 Mar 2025 07:19:45 +0000
+
+wf-panel-pi (0.94) bookworm; urgency=medium
+
+  * Update pipanel argument
+
+ -- Simon Long <simon@raspberrypi.com>  Tue, 18 Mar 2025 07:28:36 +0000
+
+wf-panel-pi (0.93) bookworm; urgency=medium
+
+  * Handle tilde paths in icon searches
+
+ -- Simon Long <simon@raspberrypi.com>  Mon, 10 Feb 2025 11:48:19 +0000
+
+wf-panel-pi (0.92) bookworm; urgency=medium
+
+  * Add support for hybrid package projects
+
+ -- Simon Long <simon@raspberrypi.com>  Thu, 16 Jan 2025 14:00:29 +0000
+
 wf-panel-pi (0.91) bookworm; urgency=medium
 
   * Add support for launcher icons with full path
